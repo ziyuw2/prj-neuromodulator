@@ -1,3 +1,6 @@
+% Ziyu Wang, 2026-03-12
+% Plot TTL differences between NIDAQ and Arduino
+
 % Convert NITTL.mat files into a csv
 
 % Select animal folder to begin with

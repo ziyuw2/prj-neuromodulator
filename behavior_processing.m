@@ -15,9 +15,15 @@ for i=3 %:numel(session_folders)
     cd(session_folder_path);
 
     behavior_file = dir('*GO*.mat');
+    nittl_file = dir('*NITTL*.mat');
 
     if isempty(behavior_file)
         warning('GO.mat file not found in the %s', session_folders(i).name)
+        continue;
+    end
+
+    if isempty(nittl_file)
+        warning('NITTL.mat file not found in the %s', session_folders(i).name)
         continue;
     end
 
@@ -67,4 +73,20 @@ for i=3 %:numel(session_folders)
             trialInfo.(behavior_keys{j}) = behavior.(behavior_keys{j});
         end
     end
+
+    sessionInfo.nittl_threshold.led= 2;
+    sessionInfo.nittl_threshold.sound= 0.01;
+    sessionInfo.nittl_threshold.motor= 2;
+    sessionInfo.nittl_threshold.reinforcer= 1;
+    
+    % load nittl file
+    disp(['Loading nittl file:', nittl_file.name])
+    nittlmat_path = fullfile(nittl_file.name);
+    tmp = load(nittl_file.name);
+    nittl = tmp.session.NIDAQ.raw;
+    time = seconds(nittl.Time);
+    nittl_processing_v3(nittl, time, sessionInfo);
+
+    trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo);
+
 end

@@ -9,13 +9,15 @@ session_folders = animal_folder(~ismember({animal_folder.name}, {'.','..'}));
 for i=3 %:numel(session_folders)
     sessionInfo = struct();
     trialInfo = struct(); 
+    imagingInfo = struct();
 
     session_folder_path = fullfile(animal_folder_path, session_folders(i).name);
-    disp(session_folders(i).name)
+    disp(['===== Processing session: ', session_folders(i).name, ' ====='])
     cd(session_folder_path);
 
     behavior_file = dir('*GO*.mat');
     nittl_file = dir('*NITTL*.mat');
+    metadata_file = dir('*metadata*.txt');
 
     if isempty(behavior_file)
         warning('GO.mat file not found in the %s', session_folders(i).name)
@@ -30,7 +32,6 @@ for i=3 %:numel(session_folders)
     % Load behavior file
     disp(['Loading behavior file:', behavior_file.name])
     behmat_path = fullfile(behavior_file.name);
-    disp(behavior_file.name)
     tmp = load(behavior_file.name);
     behavior = tmp.session;
     % extract session information from behavior.Info.session
@@ -57,20 +58,20 @@ for i=3 %:numel(session_folders)
     % extract trial information from behavior.event
     event_keys = fieldnames(behavior.event);
     for j = 1:numel(event_keys)
-        trialInfo.(event_keys{j}) = behavior.event.(event_keys{j});
+        trialInfo.(event_keys{j}) = behavior.event.(event_keys{j})';
     end
     behavior = rmfield(behavior, 'event');
 
     % extract session and trial information from behavior
     behavior_keys = fieldnames(behavior);
     sessionInfo_target_fields = {'Init', 'expType'};
-    trialInfo_target_fields = {'rule', 'CStypeDir', 'tone', 'trialType'};
+    trialInfo_target_fields = {'iti','rule', 'CStypeDir', 'tone', 'trialType'};
 
     for j=1:numel(behavior_keys)
         if ismember(behavior_keys{j}, sessionInfo_target_fields)
             sessionInfo.(behavior_keys{j}) = behavior.(behavior_keys{j});
         elseif ismember(behavior_keys{j}, trialInfo_target_fields)
-            trialInfo.(behavior_keys{j}) = behavior.(behavior_keys{j});
+            trialInfo.(behavior_keys{j}) = behavior.(behavior_keys{j})';
         end
     end
 
@@ -85,8 +86,29 @@ for i=3 %:numel(session_folders)
     tmp = load(nittl_file.name);
     nittl = tmp.session.NIDAQ.raw;
     time = seconds(nittl.Time);
-    nittl_processing_v3(nittl, time, sessionInfo);
 
     trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo);
+
+    % load Fall.mat from green\cyto\suite2p\plane0
+    fall_path = fullfile(session_folder_path, 'green', 'cyto', 'suite2p', 'plane0', 'Fall.mat');
+    if exist(fall_path, 'file')
+        Fall = load(fall_path);
+        disp(['Processing Fall.mat file...'])
+    else
+        warning('Fall.mat not found at %s', fall_path);
+        Fall = struct();
+    end
+
+    % Process metadata file
+    if isempty(metadata_file)
+        warning('metadata.txt file not found in the %s', session_folders(i).name)
+        continue;
+    end
+    disp('Processing metadata file...')
+    metadata_path = fullfile(metadata_file.name);
+    imagingInfo = get_metadata(metadata_path);
+
+    save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'Fall', 'imagingInfo');
+    disp(['.mat file saved to ', session_folders(i).name, '.mat'])
 
 end

@@ -1,39 +1,46 @@
 function trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo)
+    ttl = struct();
     led_threshold = sessionInfo.nittl_threshold.led;
     sound_threshold = sessionInfo.nittl_threshold.sound;
     motor_threshold = sessionInfo.nittl_threshold.motor;
     reinforcer_threshold = sessionInfo.nittl_threshold.reinforcer;
 
-    trialInfo.nittl_led = get_rising_time(nittl.LED, time, led_threshold, 1);
-    disp(['nittl led: ', num2str(length(trialInfo.nittl_led))])
+    ttl.nittl_led = get_rising_time(nittl.LED, time, led_threshold, 1);
+    disp(['nittl led: ', num2str(length(ttl.nittl_led))])
 
-    trialInfo.nittl_led_ardudaq = get_rising_time(nittl.LED_arduDaq, time, led_threshold, 1);
-    disp(['nittl led_ardudaq: ', num2str(length(trialInfo.nittl_led_ardudaq))])
+    ttl.nittl_led_ardudaq = get_rising_time(nittl.LED_arduDaq, time, led_threshold, 1);
+    disp(['nittl led_ardudaq: ', num2str(length(ttl.nittl_led_ardudaq))])
 
-    trialInfo.nittl_sound = get_rising_time(nittl.Sound, time, sound_threshold, 1);
-    disp(['nittl sound: ', num2str(length(trialInfo.nittl_sound))])
+    ttl.nittl_sound = get_rising_time(nittl.Sound, time, sound_threshold, 1);
+    disp(['nittl sound: ', num2str(length(ttl.nittl_sound))])
 
-    trialInfo.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 1);
-    disp(['nittl motor: ', num2str(length(trialInfo.nittl_motor))])
+    ttl.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 1);
+    disp(['nittl motor: ', num2str(length(ttl.nittl_motor))])
 
     if ~isnan(nittl.Motor)
-        trialInfo.nittl_motor_fwd = trialInfo.nittl_motor(1:2:end);
-        trialInfo.nittl_motor_bwd = trialInfo.nittl_motor(2:2:end);
+        ttl.nittl_motor_fwd = ttl.nittl_motor(1:2:end);
+        ttl.nittl_motor_bwd = ttl.nittl_motor(2:2:end);
     else
-        trialInfo.nittl_motor_fwd = NaN;
-        trialInfo.nittl_motor_bwd = NaN;
+        ttl.nittl_motor_fwd = NaN;
+        ttl.nittl_motor_bwd = NaN;
     end
-    disp(['nittl motor_fwd: ', num2str(length(trialInfo.nittl_motor_fwd))])
-    disp(['nittl motor_bwd: ', num2str(length(trialInfo.nittl_motor_bwd))])
+    disp(['nittl motor_fwd: ', num2str(length(ttl.nittl_motor_fwd))])
+    disp(['nittl motor_bwd: ', num2str(length(ttl.nittl_motor_bwd))])
+    ttl = rmfield(ttl, 'nittl_motor');
 
     % ttl.reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
-    trialInfo.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1);
-    disp(class(trialInfo.nittl_reinforcer))
-    trialInfo.nittl_reinforcer = get_rising_time_reinforcer(trialInfo.nittl_reinforcer, trialInfo.trialType);
-    disp(['nittl reinforcer: ', num2str(length(trialInfo.nittl_reinforcer))])
+    ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1);
+    ttl.nittl_reinforcer = get_rising_time_reinforcer(ttl.nittl_reinforcer, trialInfo.trialType);
+    disp(['nittl reinforcer: ', num2str(length(ttl.nittl_reinforcer))])
 
-    trialInfo.nittl = check_timepoints(trialInfo.nittl);
-    trialInfo.nittl = align_to_leddaq(trialInfo.nittl);
+    % trialInfo.nittl = check_timepoints(trialInfo.nittl);
+    ttl = align_to_leddaq(ttl);
+
+    ttl_fields = fieldnames(ttl);
+    for k = 1:numel(ttl_fields)
+        field_name = ttl_fields{k};
+        trialInfo.(field_name) = ttl.(field_name);
+    end
 end
 
 % Find the difference betwee two consecutive timepoints in seq greater than threshold_diff
@@ -72,15 +79,16 @@ function [ttl] = check_timepoints(ttl)
     end
 end
 
+% Align the timepoints to the led-daq timepoints, setting the led-daq timepoints to 0
 function [ttl] = align_to_leddaq(ttl)
     fields = fieldnames(ttl);
     for k = 1:numel(fields)
         if ~strcmp(fields{k}, 'led_ardudaq')
-            ttl.(fields{k}) = ttl.(fields{k}) - ttl.led_ardudaq;
+            ttl.(fields{k}) = ttl.(fields{k}) - ttl.nittl_led_ardudaq;
             % jitter_idx = 0 < ttl.(fields{k}) & ttl.(fields{k}) < 700;
             % disp(['There are ', num2str(sum(jitter_idx)), ' jitter timepoints for ', fields{k}])
             % ttl.(fields{k})(jitter_idx) = NaN;
         end
     end
-    ttl.led_ardudaq = zeros(numel(ttl.led_ardudaq), 1);
+    ttl.nittl_led_ardudaq = zeros(numel(ttl.nittl_led_ardudaq), 1);
 end

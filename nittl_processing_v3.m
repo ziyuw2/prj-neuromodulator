@@ -62,33 +62,57 @@ function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, tr
     reinforcer_timepoints(isR) = ttl_reinforcer(1:numel(ttl_reinforcer));
 end
 
-function [ttl] = check_timepoints(ttl)
-    fields = fieldnames(ttl);
-    length_list = zeros(1, numel(fields));
-    for k = 1:numel(fields) 
-        length_list(k) = length(ttl.(fields{k}));
-    end
-    valid_length = length_list(length_list > 1);
-    tot_trial = mode(valid_length);
-    aligned = length_list == tot_trial;
-    for k = 1:numel(fields)
-        if ~aligned(k)
-            disp(['Timepoints are not aligned for ', fields{k}])
-            ttl.(fields{k}) = NaN(tot_trial, 1);
-        end
-    end
-end
+% function [ttl] = check_timepoints(ttl)
+%     fields = fieldnames(ttl);
+%     length_list = zeros(1, numel(fields));
+%     for k = 1:numel(fields) 
+%         length_list(k) = length(ttl.(fields{k}));
+%     end
+%     valid_length = length_list(length_list > 1);
+%     tot_trial = mode(valid_length);
+%     aligned = length_list == tot_trial;
+%     for k = 1:numel(fields)
+%         if ~aligned(k)
+%             disp(['Timepoints are not aligned for ', fields{k}])
+%             ttl.(fields{k}) = NaN(tot_trial, 1);
+%         end
+%     end
+% end
 
 % Align the timepoints to the led-daq timepoints, setting the led-daq timepoints to 0
 function [ttl] = align_to_leddaq(ttl)
     fields = fieldnames(ttl);
+    ref = ttl.nittl_led_ardudaq;
+
     for k = 1:numel(fields)
-        if ~strcmp(fields{k}, 'led_ardudaq')
-            ttl.(fields{k}) = ttl.(fields{k}) - ttl.nittl_led_ardudaq;
+        field_name = fields{k};
+        if ~strcmp(field_name, 'nittl_led_ardudaq')
+            current = ttl.(field_name);
+
+            % Some sessions can have empty fields; keep them empty.
+            if isempty(current)
+                continue;
+            end
+
+            % If reference is empty, preserve size and mark as missing.
+            if isempty(ref)
+                ttl.(field_name) = NaN(size(current));
+                continue;
+            end
+
+            if numel(current) == numel(ref)
+                ttl.(field_name) = current - ref;
+            else
+                % Keep shape stable when lengths are mismatched.
+                n = min(numel(current), numel(ref));
+                aligned = NaN(size(current));
+                aligned(1:n) = current(1:n) - ref(1:n);
+                ttl.(field_name) = aligned;
+            end
             % jitter_idx = 0 < ttl.(fields{k}) & ttl.(fields{k}) < 700;
             % disp(['There are ', num2str(sum(jitter_idx)), ' jitter timepoints for ', fields{k}])
             % ttl.(fields{k})(jitter_idx) = NaN;
         end
     end
-    ttl.nittl_led_ardudaq = zeros(numel(ttl.nittl_led_ardudaq), 1);
+    ttl.nittl_led_ardudaq = zeros(numel(ref), 1);
 end

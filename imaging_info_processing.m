@@ -1,5 +1,5 @@
 % Ziyu Wang, 2026-03-18
-% Extract imaging information from Fall.mat file after suite2p processing and manuel curation
+% 3. Extract imaging information from Fall.mat file after suite2p processing and manuel curation
 
 animal_folder_path = uigetdir(pwd, 'Select animal folder');
 
@@ -16,7 +16,6 @@ for i=3 %:numel(session_folders)
     cd(session_folder_path);
 
     mat_file = dir('*0*.mat');
-
 
     if isempty(mat_file)
         warning('.mat file not found in the %s', session_folders(i).name)

@@ -1,12 +1,13 @@
 % Ziyu Wang, 2026-03-12
 % 1. Extract session and trial information from GO.mat file
+% 2. Extract metadata from .txt file
 
 animal_folder_path = uigetdir(pwd, 'Select animal folder');
 
 animal_folder = dir(animal_folder_path);
 session_folders = animal_folder(~ismember({animal_folder.name}, {'.','..'}));
 
-for i=3 %:numel(session_folders)
+for i=2 %:numel(session_folders)
     sessionInfo = struct();
     trialInfo = struct(); 
     imagingInfo = struct();
@@ -89,15 +90,6 @@ for i=3 %:numel(session_folders)
 
     trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo);
 
-    %% load Fall.mat from green\cyto\suite2p\plane0
-    fall_path = fullfile(session_folder_path, 'green', 'cyto', 'suite2p', 'plane0', 'Fall.mat');
-    if exist(fall_path, 'file')
-        Fall = load(fall_path);
-        disp(['Processing Fall.mat file...'])
-    else
-        warning('Fall.mat not found at %s', fall_path);
-        Fall = struct();
-    end
 
     %% Process metadata file
     if isempty(metadata_file)

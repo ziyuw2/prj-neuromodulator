@@ -6,14 +6,23 @@ animal_folder_path = uigetdir(pwd, 'Select animal folder');
 
 animal_folder = dir(animal_folder_path);
 session_folders = animal_folder(~ismember({animal_folder.name}, {'.','..'}));
+% Only process subfolders (skip stray files at animal level)
+session_folders = session_folders([session_folders.isdir]);
 
-for i=2 %:numel(session_folders)
+for i=1:numel(session_folders)
     sessionInfo = struct();
     trialInfo = struct(); 
     imagingInfo = struct();
 
     session_folder_path = fullfile(animal_folder_path, session_folders(i).name);
-    disp(['===== Processing session: ', session_folders(i).name, ' ====='])
+    disp(['======================= Processing session: ', session_folders(i).name, ' ======================='])
+
+    output_mat_path = fullfile(session_folder_path, [session_folders(i).name, '.mat']);
+    if exist(output_mat_path, 'file')
+        disp(['Skipping session (already processed): ', session_folders(i).name])
+        continue;
+    end
+
     cd(session_folder_path);
 
     behavior_file = dir('*GO*.mat');
@@ -100,7 +109,7 @@ for i=2 %:numel(session_folders)
     metadata_path = fullfile(metadata_file.name);
     imagingInfo = get_metadata(metadata_path);
 
-    save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'Fall', 'imagingInfo');
+    save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'imagingInfo');
     disp(['.mat file saved to ', session_folders(i).name, '.mat'])
 
 end

@@ -57,8 +57,12 @@ function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, tr
     % Output: one value per trial; R trials get the corresponding ttl_reinforcer value, rest are NaN
     reinforcer_timepoints = NaN(numel(trialType), 1);
     isR = strcmp(trialType, 'R');
-    % nR = sum(isR);
-    assert(numel(ttl_reinforcer) == sum(isR), 'Reinforcer timepoints length must match the number of R trials');
+
+    if numel(ttl_reinforcer) ~= sum(isR)
+        warning('Reinforcer timepoints length mismatch; setting reinforcer_timepoints to NaN.');
+        return;
+    end
+
     reinforcer_timepoints(isR) = ttl_reinforcer(1:numel(ttl_reinforcer));
 end
 

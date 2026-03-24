@@ -6,6 +6,8 @@
 % If a non-keep item already exists at destination, source is deleted.
 % Keep items are: <session>.mat and any .png file in the session folder.
 %
+% Sessions without a file named <session>.mat in the session folder are skipped.
+%
 % Usage: run script, select an animal folder (parent of session subfolders).
 
 processed_root = 'D:\Data-processed';
@@ -35,6 +37,12 @@ session_entries = session_entries([session_entries.isdir]);
 for i = 1:numel(session_entries)
     session_name = session_entries(i).name;
     session_folder_path = fullfile(animal_folder_path, session_name);
+
+    session_mat_path = fullfile(session_folder_path, [session_name, '.mat']);
+    if ~exist(session_mat_path, 'file')
+        warning('Skipping session (no matching .mat): expected %s in %s', [session_name, '.mat'], session_name)
+        continue;
+    end
 
     dest_session_path = fullfile(dest_animal_path, session_name);
     if ~exist(dest_session_path, 'dir')

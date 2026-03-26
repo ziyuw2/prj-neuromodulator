@@ -1,22 +1,21 @@
-function trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo)
+function trialInfo = nittl_processing(nittl, time, sessionInfo, trialInfo)
     ttl = struct();
     led_threshold = sessionInfo.nittl_threshold.led;
     sound_threshold = sessionInfo.nittl_threshold.sound;
     motor_threshold = sessionInfo.nittl_threshold.motor;
     reinforcer_threshold = sessionInfo.nittl_threshold.reinforcer;
 
-    ttl.nittl_led = get_rising_time(nittl.LED, time, led_threshold, 1);
+    ttl.nittl_led = get_rising_time(nittl.LED, time, led_threshold, 1, 3);
     disp(['nittl led: ', num2str(length(ttl.nittl_led))])
 
-    ttl.nittl_led_ardudaq = get_rising_time(nittl.LED_arduDaq, time, led_threshold, 1);
+    ttl.nittl_led_ardudaq = get_rising_time(nittl.LED_arduDaq, time, led_threshold, 1, 3);
     disp(['nittl led_ardudaq: ', num2str(length(ttl.nittl_led_ardudaq))])
 
-    ttl.nittl_sound = get_rising_time(nittl.Sound, time, sound_threshold, 1);
+    ttl.nittl_sound = get_rising_time(nittl.Sound, time, sound_threshold, 1, 0);
     disp(['nittl sound: ', num2str(length(ttl.nittl_sound))])
 
-    ttl.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 0.5);
+    ttl.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 0.5, 3);
     disp(['nittl motor: ', num2str(length(ttl.nittl_motor))])
-
     if ~isnan(nittl.Motor)
         ttl.nittl_motor_fwd = ttl.nittl_motor(1:2:end);
         ttl.nittl_motor_bwd = ttl.nittl_motor(2:2:end);
@@ -29,9 +28,10 @@ function trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo)
     ttl = rmfield(ttl, 'nittl_motor');
 
     % ttl.reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
-    ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1);
-    ttl.nittl_reinforcer = get_rising_time_reinforcer(ttl.nittl_reinforcer, trialInfo);
-    disp(['nittl reinforcer: ', num2str(length(ttl.nittl_reinforcer))])
+    ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1, 2);
+    disp(['nittl reinforcer before alignment: ', num2str(length(ttl.nittl_reinforcer))])
+    ttl.nittl_reinforcer = align_reinforcer(ttl.nittl_reinforcer, trialInfo);
+    disp(['nittl reinforcer after alignment: ', num2str(length(ttl.nittl_reinforcer))])
 
     % trialInfo.nittl = check_timepoints(trialInfo.nittl);
     ttl = align_to_leddaq(ttl);
@@ -45,7 +45,8 @@ end
 
 % Find the difference betwee two consecutive timepoints in seq greater than threshold_diff
 % and remove the timepoints that are less than threshold_time
-function [timepoints] = get_rising_time(daq_seq, time_seq, threshold_diff, threshold_time)
+function [timepoints] = get_rising_time(daq_seq, time_seq, threshold_diff, threshold_time, lower_bound)
+    daq_seq(daq_seq < lower_bound) = 0;
     timepoints = time_seq([0; diff(daq_seq)] > threshold_diff);
     timepoints(find(diff(timepoints) < threshold_time) + 1) = [];
     % Output double (ms): time_seq in seconds; ensure numeric ms
@@ -53,13 +54,14 @@ function [timepoints] = get_rising_time(daq_seq, time_seq, threshold_diff, thres
 end
 
 % Reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
-function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, trialInfo)
+function [reinforcer_timepoints] = align_reinforcer(ttl_reinforcer, trialInfo)
     % CC sessions: align reinforcer to R trials using trialInfo.trialType.
     % GNG sessions: align reinforcer to FA trials using trialInfo.behavior.
     if isfield(trialInfo, 'trialType')
         labels = trialInfo.trialType;
         labels = string(labels(:));
         target_mask = labels == "R";
+        disp(['Detected R trials (CC): ', num2str(sum(target_mask))])
     elseif isfield(trialInfo, 'behavior')
         labels = trialInfo.behavior;
         labels = string(labels(:));
@@ -70,32 +72,16 @@ function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, tr
         reinforcer_timepoints = NaN(0, 1);
         return;
     end
-
-    reinforcer_timepoints = NaN(numel(labels), 1);
-    if numel(ttl_reinforcer) ~= sum(target_mask)
-        warning('Reinforcer timepoints length mismatch; setting reinforcer_timepoints to NaN.');
-        return;
+    % if the number of reinforcer TTL is aligned, then the rest of reinforcer TTL are set to NaN. If not, keep the original reinforcer TTL.
+    if sum(target_mask) == numel(ttl_reinforcer)
+        reinforcer_timepoints = NaN(numel(target_mask), 1);
+        reinforcer_timepoints(target_mask) = ttl_reinforcer;
+        disp('Reinforcer timepoints aligned.')
+    else
+        disp('Reinforcer timepoints length mismatched with trial Type info.');
+        reinforcer_timepoints = ttl_reinforcer;
     end
-
-    reinforcer_timepoints(target_mask) = ttl_reinforcer(1:numel(ttl_reinforcer));
 end
-
-% function [ttl] = check_timepoints(ttl)
-%     fields = fieldnames(ttl);
-%     length_list = zeros(1, numel(fields));
-%     for k = 1:numel(fields) 
-%         length_list(k) = length(ttl.(fields{k}));
-%     end
-%     valid_length = length_list(length_list > 1);
-%     tot_trial = mode(valid_length);
-%     aligned = length_list == tot_trial;
-%     for k = 1:numel(fields)
-%         if ~aligned(k)
-%             disp(['Timepoints are not aligned for ', fields{k}])
-%             ttl.(fields{k}) = NaN(tot_trial, 1);
-%         end
-%     end
-% end
 
 % Align the timepoints to the led-daq timepoints, setting the led-daq timepoints to 0
 function [ttl] = align_to_leddaq(ttl)
@@ -127,9 +113,6 @@ function [ttl] = align_to_leddaq(ttl)
                 aligned(1:n) = current(1:n) - ref(1:n);
                 ttl.(field_name) = aligned;
             end
-            % jitter_idx = 0 < ttl.(fields{k}) & ttl.(fields{k}) < 700;
-            % disp(['There are ', num2str(sum(jitter_idx)), ' jitter timepoints for ', fields{k}])
-            % ttl.(fields{k})(jitter_idx) = NaN;
         end
     end
     ttl.nittl_led_ardudaq = zeros(numel(ref), 1);

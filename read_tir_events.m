@@ -1,4 +1,4 @@
-function [eventT] = read_tir_events_v4(tir_path, threshold, min_gap_frames)
+function [eventT] = read_tir_events(tir_path, threshold, min_gap_frames)
 % READ_TIR_EVENTS_V4 Read TIR tiff file and extract event times
 %
 % Inputs:
@@ -30,6 +30,7 @@ if isempty(tir_files)
     error('No TIR file found in %s', tir_path);
 end
 fname = tir_files(1).name;
+disp(['... Processing TIR file: ', fname])
 
 
 % Full path to TIR file

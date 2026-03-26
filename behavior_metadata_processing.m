@@ -58,7 +58,7 @@ for i=1:numel(session_folders)
     end
 
     behavior.Info = rmfield(behavior.Info, 'session');
-    
+    % extract the rest fields of behavior.Info to sessionInfo
     info_keys = fieldnames(behavior.Info);
     for j = 1:numel(info_keys)
         sessionInfo.(info_keys{j}) = behavior.Info.(info_keys{j});
@@ -75,7 +75,15 @@ for i=1:numel(session_folders)
     % extract session and trial information from behavior
     behavior_keys = fieldnames(behavior);
     sessionInfo_target_fields = {'Init', 'expType'};
-    trialInfo_target_fields = {'iti','rule', 'CStypeDir', 'tone', 'trialType'};
+    trialInfo_target_fields_cc  = {'iti','rule', 'CStypeDir', 'tone', 'trialType'};
+    trialInfo_target_fields_gng = {'iti','rule', 'trialTypeDir', 'tone', 'behavior'};
+
+    use_gng = contains(session_folders(i).name, 'GNG');
+    if use_gng
+        trialInfo_target_fields = trialInfo_target_fields_gng;
+    else
+        trialInfo_target_fields = trialInfo_target_fields_cc;
+    end
 
     for j=1:numel(behavior_keys)
         if ismember(behavior_keys{j}, sessionInfo_target_fields)
@@ -99,17 +107,50 @@ for i=1:numel(session_folders)
 
     trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo);
 
-
-    %% Process metadata file
+    %% Process metadata file (optional)
+    has_metadata = false;
     if isempty(metadata_file)
-        warning('metadata.txt file not found in the %s', session_folders(i).name)
-        continue;
+        warning('metadata.txt file not found in %s; saving without imagingInfo metadata.', session_folders(i).name)
+    else
+        disp('Processing metadata file...')
+        metadata_path = fullfile(metadata_file.name);
+        imagingInfo = get_metadata(metadata_path);
+        has_metadata = true;
     end
-    disp('Processing metadata file...')
-    metadata_path = fullfile(metadata_file.name);
-    imagingInfo = get_metadata(metadata_path);
 
-    save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'imagingInfo');
+    %% Extract timepoints from TIR tiff file (via read_tir_events_v3)
+    diff_threshold = 500;
+    timegap_threshold_s = 5; % minimum gap in seconds between detected rises
+    trialInfo.tir_frames = [];
+    trialInfo.tir_mean_trace = [];
+
+    tir_folder_path = fullfile(session_folder_path, 'tir');
+    if exist(tir_folder_path, 'dir')
+        if has_metadata && isfield(imagingInfo, 'frame_rate_Hz') && imagingInfo.frame_rate_Hz > 0
+            frame_rate_Hz = imagingInfo.frame_rate_Hz;
+        else
+            frame_rate_Hz = 20; % fallback if metadata is unavailable
+        end
+        min_gap_frames = timegap_threshold_s * frame_rate_Hz;
+
+        try
+            tir_frames = read_tir_events_v4(tir_folder_path, diff_threshold, min_gap_frames);
+            trialInfo.tir_frames = tir_frames;
+            disp(['Extracted TIR rises: ', num2str(numel(tir_frames))])
+        catch ME
+            warning('Failed to extract TIR events in %s: %s', tir_folder_path, ME.message)
+        end
+    else
+        warning('TIR folder not found in %s', session_folders(i).name)
+    end
+
+    %% Save outputs
+    if has_metadata
+        save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'imagingInfo');
+    else
+        save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo');
+    end
+    
     disp(['.mat file saved to ', session_folders(i).name, '.mat'])
 
 end

@@ -14,7 +14,7 @@ function trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo)
     ttl.nittl_sound = get_rising_time(nittl.Sound, time, sound_threshold, 1);
     disp(['nittl sound: ', num2str(length(ttl.nittl_sound))])
 
-    ttl.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 1);
+    ttl.nittl_motor = get_rising_time(nittl.Motor, time, motor_threshold, 0.5);
     disp(['nittl motor: ', num2str(length(ttl.nittl_motor))])
 
     if ~isnan(nittl.Motor)
@@ -30,7 +30,7 @@ function trialInfo = nittl_processing_v3(nittl, time, sessionInfo, trialInfo)
 
     % ttl.reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
     ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1);
-    ttl.nittl_reinforcer = get_rising_time_reinforcer(ttl.nittl_reinforcer, trialInfo.trialType);
+    ttl.nittl_reinforcer = get_rising_time_reinforcer(ttl.nittl_reinforcer, trialInfo);
     disp(['nittl reinforcer: ', num2str(length(ttl.nittl_reinforcer))])
 
     % trialInfo.nittl = check_timepoints(trialInfo.nittl);
@@ -53,17 +53,31 @@ function [timepoints] = get_rising_time(daq_seq, time_seq, threshold_diff, thres
 end
 
 % Reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
-function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, trialType)
-    % Output: one value per trial; R trials get the corresponding ttl_reinforcer value, rest are NaN
-    reinforcer_timepoints = NaN(numel(trialType), 1);
-    isR = strcmp(trialType, 'R');
+function [reinforcer_timepoints] = get_rising_time_reinforcer(ttl_reinforcer, trialInfo)
+    % CC sessions: align reinforcer to R trials using trialInfo.trialType.
+    % GNG sessions: align reinforcer to FA trials using trialInfo.behavior.
+    if isfield(trialInfo, 'trialType')
+        labels = trialInfo.trialType;
+        labels = string(labels(:));
+        target_mask = labels == "R";
+    elseif isfield(trialInfo, 'behavior')
+        labels = trialInfo.behavior;
+        labels = string(labels(:));
+        target_mask = labels == "FA";
+        disp(['Detected FA trials (GNG): ', num2str(sum(target_mask))])
+    else
+        warning('Neither trialType nor behavior found in trialInfo; setting reinforcer_timepoints to NaN.');
+        reinforcer_timepoints = NaN(0, 1);
+        return;
+    end
 
-    if numel(ttl_reinforcer) ~= sum(isR)
+    reinforcer_timepoints = NaN(numel(labels), 1);
+    if numel(ttl_reinforcer) ~= sum(target_mask)
         warning('Reinforcer timepoints length mismatch; setting reinforcer_timepoints to NaN.');
         return;
     end
 
-    reinforcer_timepoints(isR) = ttl_reinforcer(1:numel(ttl_reinforcer));
+    reinforcer_timepoints(target_mask) = ttl_reinforcer(1:numel(ttl_reinforcer));
 end
 
 % function [ttl] = check_timepoints(ttl)

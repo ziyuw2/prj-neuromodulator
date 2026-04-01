@@ -1,4 +1,4 @@
-function [eventT] = read_tir_events(tir_path, threshold, min_gap_frames)
+function [eventT, pix_trace] = read_tir_events(tir_path, threshold, min_gap_frames)
 % READ_TIR_EVENTS_V4 Read TIR tiff file and extract event times
 %
 % Inputs:
@@ -32,7 +32,6 @@ end
 fname = tir_files(1).name;
 disp(['... Processing TIR file: ', fname])
 
-
 % Full path to TIR file
 full_path = fullfile(tir_path, fname);
 
@@ -54,13 +53,7 @@ t.close();
 
 % Detect events
 eventT = find(diff(pix_trace) > threshold) + 1;
-if ~isempty(eventT)
-    eventT(end) = [];
-end
+eventT(find(diff(eventT) < min_gap_frames) + 1) = [];
 
-% Remove events that are too close together
-if numel(eventT) > 1 && sum(diff(eventT)) > 0
-    eventT(find(diff(eventT) < min_gap_frames) + 1) = [];
-end
 
 end

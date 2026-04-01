@@ -10,13 +10,13 @@ session_folders = animal_folder(~ismember({animal_folder.name}, {'.','..'}));
 % Only process subfolders (skip stray files at animal level)
 session_folders = session_folders([session_folders.isdir]);
 
-for i=7:numel(session_folders)
+for i=17%:numel(session_folders)
     sessionInfo = struct();
     trialInfo = struct(); 
     imagingInfo = struct();
 
     session_folder_path = fullfile(animal_folder_path, session_folders(i).name);
-    disp(['======================= Processing session: ', session_folders(i).name, ' ======================='])
+    disp(['———————————————————————————— Processing session: ', session_folders(i).name, ' ——————————————————————————————'])
 
     % output_mat_path = fullfile(session_folder_path, [session_folders(i).name, '.mat']);
     % if exist(output_mat_path, 'file')
@@ -98,6 +98,8 @@ for i=7:numel(session_folders)
     sessionInfo.nittl_threshold.sound= 0.01;
     sessionInfo.nittl_threshold.motor= 2;
     sessionInfo.nittl_threshold.reinforcer= 2;
+    sessionInfo.nittl_threshold.water= 2;
+    sessionInfo.nittl_threshold.airpuff= 2;
     disp(['... Processing nittl file:', nittl_file.name])
     nittlmat_path = fullfile(nittl_file.name);
     tmp = load(nittl_file.name);
@@ -120,8 +122,10 @@ for i=7:numel(session_folders)
 
 
     %% Extract timepoints from TIR tiff file (via read_tir_events)
-    diff_threshold = 500;
+    diff_threshold = 100;
     timegap_threshold_s = 5; % minimum gap in seconds between detected rises
+    sessionInfo.tir_threshold.tir_diff = diff_threshold;
+    sessionInfo.tir_threshold.tir_timegap_s = timegap_threshold_s;
     trialInfo.tir_frames = [];
     trialInfo.tir_mean_trace = [];
 
@@ -129,14 +133,16 @@ for i=7:numel(session_folders)
     if exist(tir_folder_path, 'dir')
         if has_metadata && isfield(imagingInfo, 'frame_rate_Hz') && imagingInfo.frame_rate_Hz > 0
             frame_rate_Hz = imagingInfo.frame_rate_Hz;
+            disp(['Frame rate: ', num2str(frame_rate_Hz)])
         else
-            frame_rate_Hz = 20; % fallback if metadata is unavailable
+            disp('Frame rate not found in metadata; double check.')
         end
-        min_gap_frames = timegap_threshold_s * frame_rate_Hz;
 
+        min_gap_frames = timegap_threshold_s * frame_rate_Hz;
         try
-            tir_frames = read_tir_events(tir_folder_path, diff_threshold, min_gap_frames);
+            [tir_frames, pix_trace] = read_tir_events(tir_folder_path, diff_threshold, min_gap_frames);
             trialInfo.tir_frames = tir_frames;
+            trialInfo.tir_mean_trace = pix_trace;
             disp(['Extracted TIR rises: ', num2str(numel(tir_frames))])
         catch ME
             warning('Failed to extract TIR events in %s: %s', tir_folder_path, ME.message)

@@ -14,7 +14,7 @@ session_folders = session_folders([session_folders.isdir]);
 
 npy_names = {'stat.npy', 'ops.npy', 'F.npy', 'Fneu.npy', 'spks.npy', 'iscell.npy'};
 
-for i = 1:numel(session_folders)
+for i = 9%:numel(session_folders)
     session_folder_path = fullfile(animal_folder_path, session_folders(i).name);
     disp(['============ Processing session: ', session_folders(i).name, ' ============='])
     cd(session_folder_path);

@@ -31,19 +31,18 @@ function trialInfo = nittl_processing(nittl, time, sessionInfo, trialInfo)
 
     % ttl.reinforcer contains both reinforcer and led-daq timepoints; extracting only reinforcer timepoints
     if any(strcmp(nittl.Properties.VariableNames, "Reinforcer"))
-        ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1, 2);
+        % ttl.nittl_reinforcer = time([0;diff(nittl.Reinforcer)] > reinforcer_threshold);
+        % ttl.nittl_reinforcer(find(diff(ttl.nittl_reinforcer) < 1) + 1) = [];
+        ttl.nittl_reinforcer = get_rising_time(nittl.Reinforcer, time, reinforcer_threshold, 1, 0);
         disp(['nittl reinforcer before alignment: ', num2str(length(ttl.nittl_reinforcer))])
-        ttl.nittl_reinforcer = align_reinforcer(ttl.nittl_reinforcer, trialInfo);
-        disp(['nittl reinforcer after alignment: ', num2str(length(ttl.nittl_reinforcer))])
+        ttl.nittl_reinforcer = align_reinforcer(ttl.nittl_reinforcer, trialInfo, "FA");
     elseif any(strcmp(nittl.Properties.VariableNames, "Water")) && any(strcmp(nittl.Properties.VariableNames, "Airpuff"))
-        ttl.nittl_water = get_rising_time(nittl.Water, time, water_threshold, 1, 2);
+        ttl.nittl_water = get_rising_time(nittl.Water, time, water_threshold, 5, 2);
         disp(['nittl water: ', num2str(length(ttl.nittl_water))])
         ttl.nittl_water = align_reinforcer(ttl.nittl_water, trialInfo, "Hit");
-        disp([' nittl water after alignment: ', num2str(length(ttl.nittl_water))])
-        ttl.nittl_airpuff = get_rising_time(nittl.Airpuff, time, airpuff_threshold, 1, 2);
+        ttl.nittl_airpuff = get_rising_time(nittl.Airpuff, time, airpuff_threshold, 5, 2);
         disp(['nittl airpuff: ', num2str(length(ttl.nittl_airpuff))])
         ttl.nittl_airpuff = align_reinforcer(ttl.nittl_airpuff, trialInfo, "FA");
-        disp([' nittl airpuff after alignment: ', num2str(length(ttl.nittl_airpuff))])
     else
         warning('Neither reinforcer nor water and airpuff found in nittl; setting reinforcer_timepoints to NaN.');
         ttl.nittl_reinforcer = NaN(0, 1);
@@ -51,7 +50,7 @@ function trialInfo = nittl_processing(nittl, time, sessionInfo, trialInfo)
         ttl.nittl_airpuff = NaN(0, 1);
     end
 
-
+    % disp(ttl.nittl_reinforcer(1:10))
     % trialInfo.nittl = check_timepoints(trialInfo.nittl);
     ttl = align_to_leddaq(ttl);
 
@@ -76,34 +75,42 @@ end
 function [reinforcer_timepoints] = align_reinforcer(ttl_reinforcer, trialInfo, target_label)
     % CC sessions: align reinforcer to R trials using trialInfo.trialType.
     % GNG sessions: align reinforcer to FA trials using trialInfo.behavior.
-    if isfield(trialInfo, 'trialType')
-        labels = trialInfo.trialType;
-        labels = string(labels(:));
-        target_mask = labels == "R";
-        fprintf(' Detected R trials (CC): %d\n', sum(target_mask));
-    elseif isfield(trialInfo, 'behavior')
-        if nargin < 3
-            target_label = "FA";
-        elseif isempty(target_label)
+    if nargin == 2
+        if isfield(trialInfo, 'trialType')
+            field_name = 'trialType';
+            target_label = "R";
+        elseif isfield(trialInfo, 'behavior')
+            field_name = 'behavior';
             target_label = "FA";
         else
-            target_label = string(target_label);
+            warning(' Neither trialType nor behavior found in trialInfo; setting reinforcer_timepoints to NaN.');
+            reinforcer_timepoints = NaN(0, 1);
+            return;
         end
-        labels = trialInfo.behavior;
-        labels = string(labels(:));
-        target_mask = labels == target_label;
-        fprintf(' Detected %s trials (GNG): %d\n', char(target_label), sum(target_mask));
     else
-        warning(' Neither trialType nor behavior found in trialInfo; setting reinforcer_timepoints to NaN.');
-        reinforcer_timepoints = NaN(0, 1);
-        return;
+        if isfield(trialInfo, 'trialType')
+            field_name = 'trialType';
+        elseif isfield(trialInfo, 'behavior')
+            field_name = 'behavior';
+        else
+            warning(' Neither trialType nor behavior found in trialInfo; setting reinforcer_timepoints to NaN.');
+            reinforcer_timepoints = NaN(0, 1);
+            return;
+        end
+        target_label = string(target_label);
     end
+
+    labels = trialInfo.(field_name);
+    labels = string(labels(:));
+    target_mask = labels == target_label;
+    fprintf(' Detected %s trials (CC): %d\n', char(target_label), sum(target_mask));
 
     % if the number of reinforcer TTL is aligned, then the rest of reinforcer TTL are set to NaN. If not, keep the original reinforcer TTL.
     if sum(target_mask) == numel(ttl_reinforcer)
         reinforcer_timepoints = NaN(numel(target_mask), 1);
         reinforcer_timepoints(target_mask) = ttl_reinforcer;
         disp(' Reinforcer timepoints aligned.')
+        % disp(reinforcer_timepoints(1:10))
     else
         disp(' Reinforcer timepoints length mismatched with trial Type info.');
         reinforcer_timepoints = ttl_reinforcer;
@@ -135,10 +142,7 @@ function [ttl] = align_to_leddaq(ttl)
                 ttl.(field_name) = current - ref;
             else
                 % Keep shape stable when lengths are mismatched.
-                n = min(numel(current), numel(ref));
-                aligned = NaN(size(current));
-                aligned(1:n) = current(1:n) - ref(1:n);
-                ttl.(field_name) = aligned;
+                ttl.(field_name) = [];
             end
         end
     end

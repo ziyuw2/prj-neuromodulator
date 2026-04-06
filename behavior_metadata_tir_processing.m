@@ -10,19 +10,18 @@ session_folders = animal_folder(~ismember({animal_folder.name}, {'.','..'}));
 % Only process subfolders (skip stray files at animal level)
 session_folders = session_folders([session_folders.isdir]);
 
-for i=17%:numel(session_folders)
+for i = 9%:numel(session_folders)
     sessionInfo = struct();
     trialInfo = struct(); 
     imagingInfo = struct();
 
     session_folder_path = fullfile(animal_folder_path, session_folders(i).name);
+    output_mat_path = fullfile(session_folder_path, [session_folders(i).name, '.mat']);
+    mat_exists = exist(output_mat_path, 'file');
     disp(['———————————————————————————— Processing session: ', session_folders(i).name, ' ——————————————————————————————'])
-
-    % output_mat_path = fullfile(session_folder_path, [session_folders(i).name, '.mat']);
-    % if exist(output_mat_path, 'file')
-    %     disp(['Skipping session (already processed): ', session_folders(i).name])
-    %     continue;
-    % end
+    if mat_exists
+        disp('Existing .mat found: updating sessionInfo / trialInfo / imagingInfo only (e.g. Fall unchanged).')
+    end
 
     cd(session_folder_path);
     behavior_file = dir('*GO*.mat');
@@ -95,7 +94,7 @@ for i=17%:numel(session_folders)
     
     %% load nittl file (NITTL.mat)
     sessionInfo.nittl_threshold.led= 2;
-    sessionInfo.nittl_threshold.sound= 0.01;
+    sessionInfo.nittl_threshold.sound= 3;
     sessionInfo.nittl_threshold.motor= 2;
     sessionInfo.nittl_threshold.reinforcer= 2;
     sessionInfo.nittl_threshold.water= 2;
@@ -107,7 +106,6 @@ for i=17%:numel(session_folders)
     time = seconds(nittl.Time);
 
     trialInfo = nittl_processing(nittl, time, sessionInfo, trialInfo);
-
 
     %% Process metadata file (optional)
     has_metadata = false;
@@ -152,13 +150,18 @@ for i=17%:numel(session_folders)
     end
 
 
-    %% Save outputs
-    if has_metadata
-        save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo', 'imagingInfo');
+    %% Save outputs (append if file exists so Fall and other vars are preserved)
+    if mat_exists
+        save(output_mat_path, 'sessionInfo', 'trialInfo', '-append');
+        if has_metadata
+            save(output_mat_path, 'imagingInfo', '-append');
+        end
+    elseif has_metadata
+        save(output_mat_path, 'sessionInfo', 'trialInfo', 'imagingInfo');
     else
-        save(fullfile(session_folder_path, [session_folders(i).name, '.mat']), 'sessionInfo', 'trialInfo');
+        save(output_mat_path, 'sessionInfo', 'trialInfo');
     end
-    
+
     disp(['======================= .mat file saved to ', session_folders(i).name, '.mat ======================='])
 
 end

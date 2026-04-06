@@ -10,7 +10,7 @@
 %
 % Usage: run script, select an animal folder (parent of session subfolders).
 
-processed_root = 'D:\Data-processed';
+processed_root = 'D:\Data-processed-backup';
 
 animal_folder_path = uigetdir(pwd, 'Select animal folder');
 if isequal(animal_folder_path, 0)
@@ -34,7 +34,7 @@ session_entries = animal_folder(~ismember({animal_folder.name}, {'.', '..'}));
 % Only session *folders* (skip stray files at animal level)
 session_entries = session_entries([session_entries.isdir]);
 
-for i = 1:numel(session_entries)
+for i = 1:3%numel(session_entries)
     session_name = session_entries(i).name;
     session_folder_path = fullfile(animal_folder_path, session_name);
 
